@@ -1,0 +1,121 @@
+Performance Prediction for the Apache KafkaMessaging System
+Abstract—Apache Kafka is a highly scalable distributed messaging system that provides high throughput with low latency.
+Various kinds of cloud vendors provide Kafka as a service for users who need a messaging system. Given a certain hardware
+environment, how to set the configurations of Kafka properly will be the first concern of users. In this paper, we
+analyze the structure and workflow of Kafka and propose a queueing based packet flow model to predict performance metrics
+of Kafka cloud services. The input configuration parameters of this model contain the number of brokers in Kafka cluster,
+the number of partitions in a topic and the batch size of messages. Through this model users can obtain the impact of
+certain configuration parameters on the performance metrics including the producer throughput, the relative payload and
+overhead and the change of disk storage usage over time. We use queueing theory to evaluate the end-to-end latency of
+packets. In the experimental validation we see a strong correlation between packet sizes and packet send interval, and the
+service time of packets fits a phase-type distribution. The correlation and fitting results are substituted to the
+essential constants in the model. Experiments are performed with various configurations for observing their effects on
+performance metrics. The results show that our model achieves high accuracy in predicting throughput and latency.Index
+Terms—Messaging system, Apache Kafka, Performance evaluation, Queueing theory.
+I. INTRODUCTION
+Apache Kafka has been developed originally at LinkedIn to process real-time log data with delays of no more than a
+few seconds, and it is designed to be a distributed, scalable, durable and fault-tolerant messaging system with high
+throughput [1],[2]. LinkedIn relies heavily on the scalability and reliability ofKafka for use cases like monitoring
+system metrics, traditional messaging or website activity tracking [3]. Kafka can handle more than 1.4 trillion messages
+per day across over 1400brokers in LinkedIn [4]. Currently, due to its strong durability and high throughput with low
+latency, Apache Kafka has been widely used in today’s Internet companies [5]. Twitter usesKafka as a part of their Storm
+stream processing infrastructure,and Netflix applies Kafka in the Keystone pipeline for real-time monitoring and event
+processing.Furthermore, many cloud vendors provide Kafka as a ser-vice for users who want to build and run applications
+thatuse Apache Kafka to process data. Kafka as a service is a cloud computing service model similar to Infrastructures as
+aService (IaaS), where basic computing resources like CPUs and storage are provisioned over the Internet. Users generally
+pay according to the length of use, while the cloud vendor manages and maintains the Kafka cluster. The advantage is that
+users can easily scale up or down resources to meet their requirements, without purchasing, installing and network-ing
+Kafka cluster servers by themselves. Currently there are services like Amazon Managed Streaming for Kafka (MSK)provided
+by Amazon Web Services (AWS) [6], Event Streams provided by IBM [7], Apache Kafka for HDInsight provided by Microsoft
+Azure [8], and Confluent Cloud provided byConfluent Cloud Enterprise, which is also built by the creators of Kafka [9].
+Those vendors provide limited resources, such asCPUs, memory and disks, and in the given hardware environment, users
+can set multiple Kafka configuration parameters on their own, such as batch size, partition number, and log retention
+time. How to configure those parameters to gain the best performance for a specific application is unclear without
+numerous experiments, which are time-consuming and costly.Besides, it is very inefficient to tune those parameters after
+aKafka cluster is running.In this paper, we propose a queueing based model to predict the performance of Kafka. Users can
+tune the configuration parameters in the model to observe the parameters’ impact onKafka’s performance. This can help
+users to utilize the limited resources provided by cloud vendors more economically and give explicit advice on the
+configuration settings of Kafka.
+II. RELATED WORK
+Plentiful experiments have been done to compare the performance of Apache Kafka and traditional message brokers like
+RabbitMQ, which is primarily known and used as an efficient and scalable implementation of the Advanced Message Queuing
+Protocol (AMQP). The results indicate that both systems are capable of processing messages with low-latency, and
+increasing the Kafka partition number can significantly improve its throughput, while increasing the producer/channel
+count in RabbitMQ can only improve its performance moderately[10]. The Kafka protocol is more suitable for an
+application that needs to process massive messages, but if messages are important and security is a primary concern,
+AMQP is more reliable [11]. Despite those horizontal comparisons, how to set the configuration parameters properly
+inside Apache Kafka,which is also the major concern of the users who purchaseKafka cloud services, still remains
+challenging.
+Researchers have developed various tools to help the users of cloud services make appropriate decisions in pursuance of
+better performance with limited resources. CloudSim [12] is a well-known simulation framework which supports simulation
+tests across three major cloud service models (e.g. SaaS, PaaS,and IaaS) and it is capable of cloud simulations
+including VM allocation and provisioning, energy consumption, network management and federated clouds. CloudCmp [13]
+systematically compares the performance and cost of four different cloud vendors to guide users in selecting the
+best-performing provider for their applications. PICS (public IaaS cloud simulator) [14] provides the capabilities for
+accurately evaluating the cloud cost, resource usage and job deadline satisfaction rate. All those simulators aim at
+evaluating the public clouds without running numerous tests on real clouds, and focus more on power consumption and
+resource management.However, from the perspective of users, none of the simulators can address their concerns because
+the particular mechanisms of Kafka are not considered. The users need a tool to help them choose proper configuration
+parameters in Kafka and this motivated us to conduct this research. A queueing model is used in our approach to evaluate
+the performance of Kafka, referring to other related works. The application processed at the cloud data centers has been
+modeled as an infinite M/G/m/m + r queueing system in [15]. A queueing model has been proposed in [16] for elastic cloud
+apps where the service stage involves a load balancer and multiple workers running in parallel. The analytic model in
+[17] can evaluate simple cloud applications using message queueing as a service(MaaS), but still neglects the essential
+features in Kafka.
+III. OVERVIEW
+In this section we present a brief introduction of the Kafka messaging system to explore its mathematical characteristics.
+Apache Kafka provides a publish-subscribe messaging ser-vice, where a producer (publisher) sends messages to a Kafka
+topic in the Kafka cluster (message brokers), and a consumer(subscriber) reads messages from the subscribed topic. A
+topic is a logical category of messages, for instance the producer will send the logs of a web server access records to
+the server Logs topic, while the records of the querying records on a website will be sent to the searches topic. As
+depicted in Fig. 1, webserve 2 producers sending messages to 2 topics in this Kafka cluster, topic A and topic B
+respectively. A topic may be stored in one or more partitions, which arethe physical storage of messages in the Kafka
+cluster. The Kafka cluster consists of several brokers (Kafka servers), and all the partitions of the same topic are
+distributed among the brokers. In the example in Fig. 1 there are 3 brokers, and we see topic A consisting of 6
+partitions while topic B with3 partitions, which are denoted by tA-p{0-5} and tB-p{0-2}respectively.Each partition is
+physically stored on disks as a series of segment files that are written in an append-only manner, and it is replicated
+across the Kafka broker nodes for fault tolerance,and we denote the replica of a partition with the suffix -r in Fig. 1.
+The messages of the leader partition tA-p0 on broker1are replicated to the partition tA-p0-r on broker3, so once the
+broker1 server fails, tA-p0-r is chosen as the leader partition,which is similar for other partitions on broker1. Only
+the leader partition handles all reads and writes of messages with producer and consumer, which is performed in FIFO
+manner. Kafka uses partitions to scale a topic across many servers for producers to write messages in parallel, and also
+to facilitate parallel reading of consumers. We see 2 consumer instances in our example, and they belong to the same
+consumer group. When the consumer group is subscribed to a topic, each consumer instance in the group will in parallel
+fetch messages from a different subset of the partitions in the topic. A consumer instance can fetch messages from
+multiple partitions, while one partition has to be consumed by only one consumer instance within the same consumer
+group. However, different consumer groups can independently consume the same messages and no coordination among consumer
+groups is necessary. As a result the number of partitions controls the maximum parallelism of the consumer group, and it
+is obvious that the number of consumer instances in the consumer group should not exceed the number of partitions in the
+subscribed topic, otherwise there will be idle consumer instances.Cloud service vendors provide Apache Kafka as a
+service mainly in two different modes, the full-service mode and cluster-service mode. The VPC provided by AWS offers
+full-service mode where a user can create producer clients,consumer clients and a Kafka cluster on the cloud servers,
+and the user only needs a laptop connecting to the console for sending commands, as depicted in Fig. 2a. This mode is
+applicable when the upstream and downstream applications that cooperate with Kafka are also deployed on cloud services.
+Under many circumstances data are generated or consumed locally, and users will run Kafka producer or consumer clients on
+their own machines. Then the choice should be cluster-service mode where cloud vendors like Confluent and Aiven provide
+a Kafka cluster as a service, as shown in Fig. 2b. In this mode producer clients send messages with local machines,then
+cloud servers distribute and store those messages for consumer clients to fetch. Normally users have to run testcases
+on a Kafka cluster and compare the performance results under different configuration parameters. However, the Kafka
+cluster needs a restart every time the configuration parameter is changed, and running test cases on cloud servers is
+time-consuming and expensive.
+V. EXPERIMENTAL EVALUATION
+In this section we evaluate the proposed model from differ-ent perspectives for multiple scenarios. Our Kafka system is
+built from the latest version 2.1.1,orchestrated by Zookeeper 3.4.12 and each broker is started on a single PC. We built
+the Kafka cluster with 3 brokers to simulate the environment of using Kafka as a service, and use two other PCs as the
+producer client and consumer client,respectively. Each PC is equipped with 8G memory and all have the same type of CPU:
+Intel(R) core(TM)2 Quad CPUQ9550@2.83GHz, running Debian 4.9.144-3.1, so our servers are homogeneous, which is common for
+many cloud platforms.We study the use case where a user buys Kafka cloud service to use the message broker for a server
+log analysis application.The data source is web server access logs from NASAKennedy Space Center web servers[18], and
+each record in these logs is a message in Kafka. Our experiments revolve around the most relevant metrics, such as the
+through put of producer and the relative payload under heavy load, the utilization of network bandwidth, the disk space
+limits andKafka data retention time.A. Correlation AnalysisThe performance of the Kafka system varies significantly
+depending on the message type and the compute power of machines (e.g., CPU speed, memory size), making it extremely
+difficult to build a general model for all cases. Referring to the method in [20], we collected execution traces using
+a small fraction of the source data, and obtained the essential parameters for our performance model. We analyzed the
+correlation between producer-send packet size Sr and the send interval Gs to find function fp(x) through the metrics
+recorded in the producer throughput tests. All tests run for at least 60seconds after setup and messages are sent with
+different batch sizes to disjoint topics. The number of messages in one batchNb ranges from 1 to 50, and we create 10
+topics with 3 to 12partitions, therefore the packet sizes in our tests vary according to equation (1). Other
+configurations are all set to the default values. We illustrate part of our correlation analysis results inFig. 5,
+including the scatter points for the mean packet sizes and send intervals for one broker, as well as the lines of best fit.
+
